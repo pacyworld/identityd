@@ -64,6 +64,24 @@ pub fn build(b: *std.Build) void {
     });
     edge_store_mod.addImport("backend", backend_mod);
 
+    // --- Crypto module ---
+
+    const crypto_mod = b.createModule(.{
+        .root_source_file = b.path("src/engine/crypto.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // --- Credential Store module ---
+
+    const credential_store_mod = b.createModule(.{
+        .root_source_file = b.path("src/store/credential_store.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    credential_store_mod.addImport("backend", backend_mod);
+    credential_store_mod.addImport("crypto", crypto_mod);
+
     // --- Protocol module ---
 
     const protocol_mod = b.createModule(.{
@@ -172,6 +190,18 @@ pub fn build(b: *std.Build) void {
     });
     const run_protocol_tests = b.addRunArtifact(protocol_tests);
 
+    const crypto_tests = b.addTest(.{
+        .name = "crypto-tests",
+        .root_module = crypto_mod,
+    });
+    const run_crypto_tests = b.addRunArtifact(crypto_tests);
+
+    const credential_store_tests = b.addTest(.{
+        .name = "credential-store-tests",
+        .root_module = credential_store_mod,
+    });
+    const run_credential_store_tests = b.addRunArtifact(credential_store_tests);
+
     // --- Test step ---
 
     const test_step = b.step("test", "Run all unit tests");
@@ -182,4 +212,6 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_group_store_tests.step);
     test_step.dependOn(&run_edge_store_tests.step);
     test_step.dependOn(&run_protocol_tests.step);
+    test_step.dependOn(&run_crypto_tests.step);
+    test_step.dependOn(&run_credential_store_tests.step);
 }
