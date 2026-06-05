@@ -159,6 +159,7 @@ pub const MemoryBackend = struct {
         const alloc = self.arena.allocator();
         const gop = try self.namespaces.getOrPut(self.backing, ns);
         if (!gop.found_existing) {
+            gop.key_ptr.* = try alloc.dupe(u8, ns);
             gop.value_ptr.* = .{};
         }
         const k = try alloc.dupe(u8, key);
@@ -213,6 +214,7 @@ pub const MemoryBackend = struct {
     pub const WriteBatch = struct {
         backend: *Self,
         ops: std.ArrayListUnmanaged(BatchOp),
+        batch_arena: std.heap.ArenaAllocator,
 
         const BatchOp = union(enum) {
             put_op: struct { ns: []const u8, key: []const u8, value: []const u8 },
@@ -220,17 +222,19 @@ pub const MemoryBackend = struct {
         };
 
         pub fn put(self: *WriteBatch, ns: []const u8, key: []const u8, value: []const u8) !void {
+            const alloc = self.batch_arena.allocator();
             try self.ops.append(self.backend.backing, .{ .put_op = .{
-                .ns = ns,
-                .key = key,
-                .value = value,
+                .ns = try alloc.dupe(u8, ns),
+                .key = try alloc.dupe(u8, key),
+                .value = try alloc.dupe(u8, value),
             } });
         }
 
         pub fn delete(self: *WriteBatch, ns: []const u8, key: []const u8) !void {
+            const alloc = self.batch_arena.allocator();
             try self.ops.append(self.backend.backing, .{ .delete_op = .{
-                .ns = ns,
-                .key = key,
+                .ns = try alloc.dupe(u8, ns),
+                .key = try alloc.dupe(u8, key),
             } });
         }
 
@@ -242,15 +246,17 @@ pub const MemoryBackend = struct {
                 }
             }
             self.ops.deinit(self.backend.backing);
+            self.batch_arena.deinit();
         }
 
         pub fn abort(self: *WriteBatch) void {
             self.ops.deinit(self.backend.backing);
+            self.batch_arena.deinit();
         }
     };
 
     pub fn writeBatch(self: *Self) !WriteBatch {
-        return .{ .backend = self, .ops = .{} };
+        return .{ .backend = self, .ops = .{}, .batch_arena = std.heap.ArenaAllocator.init(self.backing) };
     }
 };
 
