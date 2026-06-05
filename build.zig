@@ -55,6 +55,15 @@ pub fn build(b: *std.Build) void {
     group_store_mod.addImport("backend", backend_mod);
     group_store_mod.addImport("cbor", cbor_mod);
 
+    // --- Edge Store module ---
+
+    const edge_store_mod = b.createModule(.{
+        .root_source_file = b.path("src/store/edge_store.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    edge_store_mod.addImport("backend", backend_mod);
+
     // --- Tests ---
 
     const backend_tests = b.addTest(.{
@@ -87,6 +96,12 @@ pub fn build(b: *std.Build) void {
     });
     const run_group_store_tests = b.addRunArtifact(group_store_tests);
 
+    const edge_store_tests = b.addTest(.{
+        .name = "edge-store-tests",
+        .root_module = edge_store_mod,
+    });
+    const run_edge_store_tests = b.addRunArtifact(edge_store_tests);
+
     // --- Test step ---
 
     const test_step = b.step("test", "Run all unit tests");
@@ -95,4 +110,5 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_lmdb_tests.step);
     test_step.dependOn(&run_identity_store_tests.step);
     test_step.dependOn(&run_group_store_tests.step);
+    test_step.dependOn(&run_edge_store_tests.step);
 }
