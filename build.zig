@@ -64,6 +64,70 @@ pub fn build(b: *std.Build) void {
     });
     edge_store_mod.addImport("backend", backend_mod);
 
+    // --- Protocol module ---
+
+    const protocol_mod = b.createModule(.{
+        .root_source_file = b.path("src/proto/protocol.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // --- Client module ---
+
+    const client_mod = b.createModule(.{
+        .root_source_file = b.path("src/proto/client.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    client_mod.addImport("protocol", protocol_mod);
+
+    // --- Server module ---
+
+    const server_mod = b.createModule(.{
+        .root_source_file = b.path("src/proto/server.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    server_mod.addImport("protocol", protocol_mod);
+    server_mod.addImport("backend", backend_mod);
+    server_mod.addImport("identity_store", identity_store_mod);
+    server_mod.addImport("group_store", group_store_mod);
+    server_mod.addImport("edge_store", edge_store_mod);
+    server_mod.addImport("cbor", cbor_mod);
+
+    // --- identityd executable ---
+
+    const daemon_mod = b.createModule(.{
+        .root_source_file = b.path("src/daemon/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    daemon_mod.addImport("lmdb_backend", lmdb_backend_mod);
+    daemon_mod.addImport("server", server_mod);
+
+    const daemon_exe = b.addExecutable(.{
+        .name = "identityd",
+        .root_module = daemon_mod,
+    });
+    b.installArtifact(daemon_exe);
+
+    // --- idctl executable ---
+
+    const ctl_mod = b.createModule(.{
+        .root_source_file = b.path("src/ctl/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    ctl_mod.addImport("protocol", protocol_mod);
+    ctl_mod.addImport("client", client_mod);
+
+    const ctl_exe = b.addExecutable(.{
+        .name = "idctl",
+        .root_module = ctl_mod,
+    });
+    b.installArtifact(ctl_exe);
+
     // --- Tests ---
 
     const backend_tests = b.addTest(.{
@@ -102,6 +166,12 @@ pub fn build(b: *std.Build) void {
     });
     const run_edge_store_tests = b.addRunArtifact(edge_store_tests);
 
+    const protocol_tests = b.addTest(.{
+        .name = "protocol-tests",
+        .root_module = protocol_mod,
+    });
+    const run_protocol_tests = b.addRunArtifact(protocol_tests);
+
     // --- Test step ---
 
     const test_step = b.step("test", "Run all unit tests");
@@ -111,4 +181,5 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_identity_store_tests.step);
     test_step.dependOn(&run_group_store_tests.step);
     test_step.dependOn(&run_edge_store_tests.step);
+    test_step.dependOn(&run_protocol_tests.step);
 }
