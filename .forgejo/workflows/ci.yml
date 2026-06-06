@@ -7,7 +7,7 @@ on:
 
 jobs:
   test:
-    runs-on: freebsd-15
+    runs-on: FreeBSD
     steps:
       - uses: actions/checkout@v4
 
