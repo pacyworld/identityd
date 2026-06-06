@@ -36,17 +36,31 @@ pub fn main() !void {
         std.process.exit(1);
     }
 
-    // Find --socket option (can appear anywhere)
+    // Find --socket option and command (first non-option arg)
     var socket_path: []const u8 = DEFAULT_SOCKET_PATH;
+    var cmd_index: ?usize = null;
     var i: usize = 1;
     while (i < args.len) : (i += 1) {
         if (std.mem.eql(u8, args[i], "--socket") and i + 1 < args.len) {
             socket_path = args[i + 1];
-            break;
+            i += 1;
+        } else if (args[i].len > 0 and args[i][0] == '-') {
+            // Other global options (--help, -h) handled below
+            if (std.mem.eql(u8, args[i], "--help") or std.mem.eql(u8, args[i], "-h")) {
+                printUsage();
+                return;
+            }
+        } else {
+            if (cmd_index == null) cmd_index = i;
         }
     }
 
-    const cmd = args[1];
+    if (cmd_index == null) {
+        printUsage();
+        std.process.exit(1);
+    }
+
+    const cmd = args[cmd_index.?];
 
     if (std.mem.eql(u8, cmd, "--help") or std.mem.eql(u8, cmd, "-h")) {
         printUsage();
@@ -58,24 +72,26 @@ pub fn main() !void {
     };
     defer client.close();
 
+    const cmd_args = args[cmd_index.? + 1 ..];
+
     if (std.mem.eql(u8, cmd, "adduser")) {
-        try cmdAddUser(allocator, &client, args[2..]);
+        try cmdAddUser(allocator, &client, cmd_args);
     } else if (std.mem.eql(u8, cmd, "deluser")) {
-        try cmdDelUser(allocator, &client, args[2..]);
+        try cmdDelUser(allocator, &client, cmd_args);
     } else if (std.mem.eql(u8, cmd, "getuser")) {
-        try cmdGetUser(allocator, &client, args[2..]);
+        try cmdGetUser(allocator, &client, cmd_args);
     } else if (std.mem.eql(u8, cmd, "addgroup")) {
-        try cmdAddGroup(allocator, &client, args[2..]);
+        try cmdAddGroup(allocator, &client, cmd_args);
     } else if (std.mem.eql(u8, cmd, "delgroup")) {
-        try cmdDelGroup(allocator, &client, args[2..]);
+        try cmdDelGroup(allocator, &client, cmd_args);
     } else if (std.mem.eql(u8, cmd, "addedge")) {
-        try cmdAddEdge(allocator, &client, args[2..]);
+        try cmdAddEdge(allocator, &client, cmd_args);
     } else if (std.mem.eql(u8, cmd, "deledge")) {
-        try cmdDelEdge(allocator, &client, args[2..]);
+        try cmdDelEdge(allocator, &client, cmd_args);
     } else if (std.mem.eql(u8, cmd, "hasedge")) {
-        try cmdHasEdge(allocator, &client, args[2..]);
+        try cmdHasEdge(allocator, &client, cmd_args);
     } else if (std.mem.eql(u8, cmd, "haspath")) {
-        try cmdHasPath(allocator, &client, args[2..]);
+        try cmdHasPath(allocator, &client, cmd_args);
     } else {
         std.log.err("unknown command: {s}", .{cmd});
         printUsage();

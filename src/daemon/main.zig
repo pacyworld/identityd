@@ -83,11 +83,11 @@ pub fn main() !void {
     std.log.info("identityd shutting down", .{});
 }
 
-var should_stop: bool = false;
-
-fn handleSignal(sig: c_int) callconv(.c) void {
-    _ = sig;
-    should_stop = true;
+fn handleSignal(_: c_int) callconv(.c) void {
+    // Zig's std.posix.accept retries EINTR and treats EBADF as unreachable,
+    // so there's no clean way to unblock the blocking accept loop from a
+    // signal handler in the prototype. Just exit. The OS cleans up fds.
+    std.posix.exit(0);
 }
 
 fn fatal(msg: []const u8) noreturn {

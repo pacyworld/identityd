@@ -78,7 +78,7 @@ pub const Client = struct {
         if (frame.tag == .err) return handleError(frame.payload);
         if (frame.tag != .identity_result) return error.InvalidResponse;
 
-        return try decodeIdentityResult(frame.payload);
+        return try decodeIdentityResult(self.allocator, frame.payload);
     }
 
     pub fn deleteIdentity(self: *Client, id: []const u8) !void {
@@ -110,8 +110,8 @@ pub const Client = struct {
         const count = std.mem.readInt(u16, frame.payload[0..2], .little);
         if (count == 0) return null;
         var dec = protocol.FieldDecoder.init(frame.payload[2..]);
-        _ = try dec.readStr();
-        return frame.payload[4 .. 4 + std.mem.readInt(u16, frame.payload[2..4], .little)];
+        const id_str = try dec.readStr();
+        return try self.allocator.dupe(u8, id_str);
     }
 
     // -- Group operations --
@@ -254,14 +254,27 @@ pub const IdentityResult = struct {
     status: u8,
     created_at: u64,
     updated_at: u64,
+
+    pub fn deinit(self: *const IdentityResult, allocator: std.mem.Allocator) void {
+        allocator.free(self.id);
+        allocator.free(self.display_name);
+        if (self.email) |e| allocator.free(e);
+    }
 };
 
-fn decodeIdentityResult(payload: []const u8) !IdentityResult {
+fn decodeIdentityResult(allocator: std.mem.Allocator, payload: []const u8) !IdentityResult {
     var dec = protocol.FieldDecoder.init(payload);
+    const id = try allocator.dupe(u8, try dec.readStr());
+    errdefer allocator.free(id);
+    const display_name = try allocator.dupe(u8, try dec.readStr());
+    errdefer allocator.free(display_name);
+    const raw_email = try dec.readOptionalStr();
+    const email = if (raw_email) |e| try allocator.dupe(u8, e) else null;
+    errdefer if (email) |e| allocator.free(e);
     return .{
-        .id = try dec.readStr(),
-        .display_name = try dec.readStr(),
-        .email = try dec.readOptionalStr(),
+        .id = id,
+        .display_name = display_name,
+        .email = email,
         .identity_type = try dec.readU8(),
         .status = try dec.readU8(),
         .created_at = try dec.readU64(),
